@@ -155,6 +155,8 @@ Customer joins queue
 
 > Full UI/UX design covering Customer Mobile Flow and Staff Dashboard.
 
+**URL:** https://www.figma.com/design/QPgP6519eyDxz2V8Dw6Nll/DineQ?node-id=0-1&t=cuEZn2wzXNTZafWz-1
+
 [
 
 **Design covers:**
@@ -541,8 +543,8 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 ## 👤 Author
 
 **Pritesh**
-- GitHub: [@your-username](https://github.com/your-username)
-- LinkedIn: [linkedin.com/in/your-profile](https://linkedin.com/in/your-profile)
+- GitHub: [BachhavPritesh](https://github.com/BachhavPritesh)
+- LinkedIn: [linkedin.com/in/pritesh-bachhav-233148396](https://www.linkedin.com/in/pritesh-bachhav-233148396/)
 
 ***
 
