@@ -1,3 +1,4 @@
+import { Queue } from '../../models/index.js';
 import { SOCKET_EVENTS, SOCKET_ROOMS } from '../socketEvents.js';
 import { getIO } from '../index.js';
 
@@ -14,6 +15,79 @@ export const notifyTableReady = async (
     claimWindowSeconds: CLAIM_WINDOW_SECONDS,
     restaurantId,
   });
+};
+
+export const handleCustomerReadyRequest = async (socket, data) => {
+  try {
+    const { customerId, queueEntryId } = data;
+
+    const queueEntry = await Queue.findById(queueEntryId)
+      .populate('customer', 'name')
+      .populate('restaurant', 'name');
+
+    if (!queueEntry) {
+      throw new Error('Queue entry not found');
+    }
+
+    const restaurantId = queueEntry.restaurant._id
+      ? queueEntry.restaurant._id.toString()
+      : queueEntry.restaurant.toString();
+
+    console.log(
+      `[ready_request] Forwarding to restaurant room: ${restaurantId}`
+    );
+
+    const io = getIO();
+    io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+      SOCKET_EVENTS.CUSTOMER_READY_REQUEST,
+      {
+        customerId: customerId.toString(),
+        queueEntryId,
+        customerName: queueEntry.customer?.name || 'Guest',
+        restaurantName: queueEntry.restaurant?.name || '',
+        message: `${queueEntry.customer?.name || 'Guest'} is requesting notification`,
+      }
+    );
+  } catch (error) {
+    console.error('handleCustomerReadyRequest error:', error);
+    socket.emit(SOCKET_EVENTS.ERROR, { message: error.message });
+  }
+};
+
+export const handleNotifyCustomer = async (socket, data) => {
+  try {
+    const { queueEntryId } = data;
+
+    const queueEntry = await Queue.findById(queueEntryId).populate(
+      'customer',
+      '_id'
+    );
+    if (!queueEntry) {
+      throw new Error('Queue entry not found');
+    }
+
+    const preOrders = queueEntry?.preOrders || [];
+    const customerId = queueEntry.customer?._id;
+    if (!customerId) {
+      throw new Error('Customer not found for this queue entry');
+    }
+
+    const io = getIO();
+    io.to(SOCKET_ROOMS.CUSTOMER(customerId.toString())).emit(
+      SOCKET_EVENTS.TABLE_READY,
+      {
+        message:
+          '🎉 Your seating is ready! We have your table ready — please come now. Your pre-ordered food will be served promptly.',
+        preOrders,
+        isReminder: true,
+      }
+    );
+
+    console.log(`Table ready notification sent to customer ${customerId}`);
+  } catch (error) {
+    console.error('handleNotifyCustomer error:', error);
+    socket.emit(SOCKET_EVENTS.ERROR, { message: error.message });
+  }
 };
 
 export const notifyQueueUpdate = async (restaurantId, queue, avgWaitTime) => {
@@ -85,6 +159,7 @@ export const notifyCustomerLeft = async (
 
 export default {
   notifyTableReady,
+  handleNotifyCustomer,
   notifyQueueUpdate,
   notifyWaitTimeUpdate,
   notifyCustomerJoined,

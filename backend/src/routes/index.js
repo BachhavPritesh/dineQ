@@ -4,6 +4,7 @@ import restaurantRoutes from './restaurant.routes.js';
 import queueRoutes from './queue.routes.js';
 import orderRoutes from './order.routes.js';
 import uploadRoutes from './upload.routes.js';
+import historyRoutes from './history.routes.js';
 
 const router = express.Router();
 
@@ -12,6 +13,7 @@ router.use('/restaurants', restaurantRoutes);
 router.use('/queue', queueRoutes);
 router.use('/orders', orderRoutes);
 router.use('/upload', uploadRoutes);
+router.use('/history', historyRoutes);
 
 router.get('/health', (req, res) => {
   res.json({

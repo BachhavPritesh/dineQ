@@ -6,6 +6,7 @@ import Register from './routes/register';
 import Dashboard from './routes/dashboard';
 import Restaurants from './routes/restaurants';
 import Queue from './routes/queue';
+import MyQueue from './routes/my-queue';
 import Profile from './routes/profile';
 import History from './routes/history';
 import OwnerHistory from './routes/owner-history';
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/restaurants" element={<Restaurants />} />
         <Route path="/queue" element={<Queue />} />
         <Route path="/queue/:restaurantId" element={<Queue />} />
+        <Route path="/my-queue" element={<MyQueue />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/history" element={<History />} />
         <Route path="/owner-history" element={<OwnerHistory />} />

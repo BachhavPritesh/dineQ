@@ -25,6 +25,16 @@ export const queueService = {
     return data;
   },
 
+  getMyQueue: async (restaurantId) => {
+    const url = restaurantId
+      ? `${API_URL}/queue/my-queue/${restaurantId}`
+      : `${API_URL}/queue/my-queue`;
+    const res = await fetch(url, { headers: getAuthHeader() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    return data;
+  },
+
   seatCustomer: async (queueId) => {
     const res = await fetch(`${API_URL}/queue/${queueId}/seat`, {
       method: 'PATCH',
@@ -47,6 +57,16 @@ export const queueService = {
 
   leave: async (queueId) => {
     const res = await fetch(`${API_URL}/queue/${queueId}`, {
+      method: 'DELETE',
+      headers: getAuthHeader(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    return data;
+  },
+
+  leaveCustomerQueue: async () => {
+    const res = await fetch(`${API_URL}/queue/leave`, {
       method: 'DELETE',
       headers: getAuthHeader(),
     });

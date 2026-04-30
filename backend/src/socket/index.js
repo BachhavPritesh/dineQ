@@ -10,13 +10,17 @@ import {
   handlePreorderReceived,
   handleOrderStatusUpdate,
 } from './handlers/orderHandler.js';
+import {
+  handleNotifyCustomer,
+  handleCustomerReadyRequest,
+} from './handlers/notificationHandler.js';
 
 let io = null;
 
 export const initializeSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: env.CLIENT_URL,
+      origin: true,
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -29,7 +33,9 @@ export const initializeSocket = (server) => {
     socket.on('join_restaurant_room', ({ restaurantId }) => {
       if (restaurantId) {
         socket.join(SOCKET_ROOMS.RESTAURANT(restaurantId));
-        console.log(`Socket ${socket.id} joined restaurant room: ${restaurantId}`);
+        console.log(
+          `Socket ${socket.id} joined restaurant room: ${restaurantId}`
+        );
       }
     });
 
@@ -55,6 +61,10 @@ export const initializeSocket = (server) => {
     socket.on(SOCKET_EVENTS.NO_SHOW, (data) => handleNoShow(socket, data));
     socket.on(SOCKET_EVENTS.PREORDER_RECEIVED, (data) =>
       handlePreorderReceived(socket, data)
+    );
+    socket.on('notify_customer', (data) => handleNotifyCustomer(socket, data));
+    socket.on(SOCKET_EVENTS.CUSTOMER_READY_REQUEST, (data) =>
+      handleCustomerReadyRequest(socket, data)
     );
     socket.on('update_order_status', (data) =>
       handleOrderStatusUpdate(socket, data)

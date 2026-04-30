@@ -3,7 +3,8 @@ import ApiResponse from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 export const getAllRestaurants = asyncHandler(async (req, res) => {
-  const result = await restaurantService.getAllRestaurants();
+  const searchQuery = req.query.q || '';
+  const result = await restaurantService.getAllRestaurants(searchQuery);
   ApiResponse.success(res, 'Restaurants fetched successfully', result);
 });
 

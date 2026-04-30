@@ -5,7 +5,7 @@ import { useRole, setStoredRole } from '@/lib/role';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const customerNav = [
-  { to: '/queue', label: 'My Queue' },
+  { to: '/my-queue', label: 'My Queue' },
   { to: '/restaurants', label: 'Top Restaurants' },
   { to: '/history', label: 'History' },
   { to: '/profile', label: 'Profile' },

@@ -1,6 +1,7 @@
 import { Queue, Restaurant } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import calculateWaitTime from '../utils/calculateWaitTime.js';
+import { createHistoryFromQueue } from './history.service.js';
 
 export const recalculateQueuePositions = async (restaurantId) => {
   const waitingQueue = await Queue.find({
@@ -84,7 +85,7 @@ export const getQueueByRestaurant = async (restaurantId) => {
 };
 
 export const seatCustomer = async (queueId, restaurantId) => {
-  const queueEntry = await Queue.findById(queueId);
+  const queueEntry = await Queue.findById(queueId).populate('customer', 'name');
   if (!queueEntry) {
     throw ApiError.notFound('Queue entry not found');
   }
@@ -96,13 +97,15 @@ export const seatCustomer = async (queueId, restaurantId) => {
   queueEntry.status = 'seated';
   await queueEntry.save();
 
+  await createHistoryFromQueue(queueId, 'seated');
+
   await recalculateQueuePositions(restaurantId);
 
   return queueEntry;
 };
 
 export const markNoShow = async (queueId, restaurantId) => {
-  const queueEntry = await Queue.findById(queueId);
+  const queueEntry = await Queue.findById(queueId).populate('customer', 'name');
   if (!queueEntry) {
     throw ApiError.notFound('Queue entry not found');
   }
@@ -114,13 +117,15 @@ export const markNoShow = async (queueId, restaurantId) => {
   queueEntry.status = 'no_show';
   await queueEntry.save();
 
+  await createHistoryFromQueue(queueId, 'no_show');
+
   await recalculateQueuePositions(restaurantId);
 
   return queueEntry;
 };
 
 export const leaveQueue = async (queueId, customerId) => {
-  const queueEntry = await Queue.findById(queueId);
+  const queueEntry = await Queue.findById(queueId).populate('customer', 'name');
   if (!queueEntry) {
     throw ApiError.notFound('Queue entry not found');
   }
@@ -133,25 +138,27 @@ export const leaveQueue = async (queueId, customerId) => {
   queueEntry.status = 'left';
   await queueEntry.save();
 
+  await createHistoryFromQueue(queueId, 'left');
+
   await recalculateQueuePositions(restaurantId);
 
   return queueEntry;
 };
 
 export const getCustomerQueue = async (customerId, restaurantId) => {
-  const queueEntry = await Queue.findOne({
-    customer: customerId,
-    restaurant: restaurantId,
-    status: 'waiting',
-  })
+  const query = { customer: customerId, status: 'waiting' };
+  if (restaurantId) {
+    query.restaurant = restaurantId;
+  }
+  const queueEntry = await Queue.findOne(query)
     .populate('customer', 'name email')
-    .populate('restaurant', 'name avgSeatingTimeMinutes');
+    .populate('restaurant', 'name address cuisine image avgSeatingTimeMinutes');
 
   return queueEntry;
 };
 
 export const removeByOwner = async (queueId, restaurantId) => {
-  const queueEntry = await Queue.findById(queueId);
+  const queueEntry = await Queue.findById(queueId).populate('customer', 'name');
   if (!queueEntry) {
     throw ApiError.notFound('Queue entry not found');
   }
@@ -163,6 +170,8 @@ export const removeByOwner = async (queueId, restaurantId) => {
   const queueEntryRestaurantId = queueEntry.restaurant;
   queueEntry.status = 'removed_by_owner';
   await queueEntry.save();
+
+  await createHistoryFromQueue(queueId, 'removed');
 
   await recalculateQueuePositions(queueEntryRestaurantId);
 

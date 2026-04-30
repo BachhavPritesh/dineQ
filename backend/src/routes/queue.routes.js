@@ -17,6 +17,12 @@ router.post(
   validateResult,
   queueController.joinQueue
 );
+router.get('/my-queue', authenticate, queueController.getCustomerQueue);
+router.get(
+  '/my-queue/:restaurantId',
+  authenticate,
+  queueController.getCustomerQueue
+);
 router.get(
   '/:restaurantId',
   authenticate,
@@ -35,7 +41,7 @@ router.patch(
   requireStaff,
   queueController.markNoShow
 );
-router.delete('/:id', authenticate, requireStaff, queueController.leaveQueue);
+router.delete('/leave', authenticate, queueController.leaveCustomerQueue);
 router.delete(
   '/:id/remove',
   authenticate,

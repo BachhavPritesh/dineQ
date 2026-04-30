@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
-import { UtensilsCrossed } from "lucide-react";
+import { Link } from 'react-router-dom';
+import { UtensilsCrossed } from 'lucide-react';
 
 export function SiteFooter() {
   return (
@@ -28,7 +28,7 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
-              <Link to="/queue" className="hover:text-gold">
+              <Link to="/my-queue" className="hover:text-gold">
                 My Queue
               </Link>
             </li>
