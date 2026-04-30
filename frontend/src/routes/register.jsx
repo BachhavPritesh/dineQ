@@ -1,31 +1,107 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { UtensilsCrossed, Mail, Lock, User, Phone, ArrowRight, Check, Store } from 'lucide-react';
+import {
+  UtensilsCrossed,
+  Mail,
+  Lock,
+  User,
+  Phone,
+  ArrowRight,
+  Check,
+  Store,
+  MapPin,
+  Image,
+  Plus,
+  X,
+} from 'lucide-react';
 import { useState } from 'react';
 import { RoleToggle } from '@/components/auth/RoleToggle';
 import { setStoredRole } from '@/lib/role';
+import { authService } from '@/services/authService';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [role, setRole] = useState('customer');
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
+  const [restaurant, setRestaurant] = useState({
+    name: '',
+    address: '',
+    cuisine: '',
+    image: '',
+    avgSeatingTimeMinutes: 15,
+    menu: [],
+  });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const set = (k) => (v) => setForm({ ...form, [k]: v });
+  const setRest = (k) => (v) => setRestaurant({ ...restaurant, [k]: v });
 
-  function handleSubmit(e) {
+  const addMenuItem = () => {
+    setRestaurant({
+      ...restaurant,
+      menu: [...restaurant.menu, { name: '', price: '', category: 'Main' }],
+    });
+  };
+
+  const removeMenuItem = (index) => {
+    setRestaurant({ ...restaurant, menu: restaurant.menu.filter((_, i) => i !== index) });
+  };
+
+  const updateMenuItem = (index, field, value) => {
+    const newMenu = [...restaurant.menu];
+    newMenu[index] = { ...newMenu[index], [field]: value };
+    setRestaurant({ ...restaurant, menu: newMenu });
+  };
+
+  async function handleSubmit(e) {
     e.preventDefault();
-    setStoredRole(role);
-    navigate(role === 'owner' ? '/dashboard' : '/restaurants');
+    setError('');
+    setLoading(true);
+    try {
+      const userData = { ...form, role: role === 'owner' ? 'staff' : 'customer' };
+      if (role === 'owner') {
+        if (!form.name) {
+          setError('Please enter your name');
+          setLoading(false);
+          return;
+        }
+        if (!restaurant.name) {
+          setError('Please enter restaurant name');
+          setLoading(false);
+          return;
+        }
+        userData.restaurant = {
+          name: restaurant.name,
+          address: restaurant.address,
+          cuisine: restaurant.cuisine,
+          image: restaurant.image || '',
+          avgSeatingTimeMinutes: parseInt(restaurant.avgSeatingTimeMinutes) || 15,
+          menu: restaurant.menu
+            .filter((m) => m.name && m.price)
+            .map((m) => ({ ...m, price: parseFloat(m.price) })),
+        };
+      }
+      await authService.register(userData);
+      setStoredRole(role);
+      navigate(role === 'owner' ? '/dashboard' : '/restaurants');
+    } catch (err) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
   }
+
+  const isOwner = role === 'owner';
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="flex items-center justify-center px-6 py-12 sm:px-12 order-2 lg:order-1">
+      <div className="flex items-center justify-center px-6 py-12 sm:px-12 order-2 lg:order-1 overflow-y-auto max-h-screen">
         <div className="w-full max-w-md">
-          <Link to="/" className="flex items-center gap-2 mb-8">
-            <div className="h-9 w-9 rounded-lg gradient-gold grid place-items-center">
+          <Link to="/" className="flex items-center gap-2 mb-8 group">
+            <div className="h-9 w-9 rounded-lg gradient-gold grid place-items-center shadow-gold transition group-hover:scale-105">
               <UtensilsCrossed className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="font-display font-semibold text-lg">
-              Queue<span className="text-gold">Table</span>
+            <span className="font-display font-semibold text-lg tracking-tight">
+              Dine<span className="text-gold">Q</span>
             </span>
           </Link>
 
@@ -37,13 +113,18 @@ export default function RegisterPage() {
           </div>
 
           <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                {error}
+              </div>
+            )}
             <Field
-              label={role === 'owner' ? 'Restaurant name' : 'Full name'}
-              icon={role === 'owner' ? Store : User}
+              label={isOwner ? 'Your Name' : 'Full name'}
+              icon={User}
               type="text"
               value={form.name}
               onChange={set('name')}
-              placeholder={role === 'owner' ? 'Ember & Oak' : 'Jane Doe'}
+              placeholder={isOwner ? 'John Smith' : 'Jane Doe'}
             />
             <Field
               label="Email"
@@ -67,8 +148,106 @@ export default function RegisterPage() {
               type="password"
               value={form.password}
               onChange={set('password')}
-              placeholder="At least 8 characters"
+              placeholder="At least 6 characters"
             />
+
+            {isOwner && (
+              <div className="space-y-4 pt-4 border-t border-border">
+                <h3 className="font-semibold text-lg">Restaurant Details</h3>
+                <Field
+                  label="Restaurant Name"
+                  icon={Store}
+                  type="text"
+                  value={restaurant.name}
+                  onChange={setRest('name')}
+                  placeholder="Ember & Oak"
+                />
+                <Field
+                  label="Address"
+                  icon={MapPin}
+                  type="text"
+                  value={restaurant.address}
+                  onChange={setRest('address')}
+                  placeholder="123 Main St, City"
+                />
+                <Field
+                  label="Cuisine Type"
+                  icon={Store}
+                  type="text"
+                  value={restaurant.cuisine}
+                  onChange={setRest('cuisine')}
+                  placeholder="Italian, Japanese, etc."
+                />
+                <Field
+                  label="Image URL"
+                  icon={Image}
+                  type="url"
+                  value={restaurant.image}
+                  onChange={setRest('image')}
+                  placeholder="https://example.com/image.jpg"
+                />
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    Avg. Seating Time (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    min="5"
+                    value={restaurant.avgSeatingTimeMinutes}
+                    onChange={(e) => setRest('avgSeatingTimeMinutes')(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg bg-input border border-border focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium">Menu Items (Optional)</label>
+                    <button
+                      type="button"
+                      onClick={addMenuItem}
+                      className="text-xs text-gold hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" /> Add Dish
+                    </button>
+                  </div>
+                  {restaurant.menu.map((item, index) => (
+                    <div key={index} className="flex gap-2 mb-2 items-end">
+                      <input
+                        type="text"
+                        placeholder="Dish name"
+                        value={item.name}
+                        onChange={(e) => updateMenuItem(index, 'name', e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-input border border-border focus:border-gold focus:outline-none text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Price"
+                        value={item.price}
+                        onChange={(e) => updateMenuItem(index, 'price', e.target.value)}
+                        className="w-20 px-3 py-2 rounded-lg bg-input border border-border focus:border-gold focus:outline-none text-sm"
+                      />
+                      <select
+                        value={item.category}
+                        onChange={(e) => updateMenuItem(index, 'category', e.target.value)}
+                        className="px-2 py-2 rounded-lg bg-input border border-border focus:border-gold focus:outline-none text-xs"
+                      >
+                        <option>Main</option>
+                        <option>Appetizer</option>
+                        <option>dessert</option>
+                        <option>Drink</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => removeMenuItem(index)}
+                        className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <label className="flex items-start gap-2 text-xs text-muted-foreground">
               <input
@@ -89,9 +268,10 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg gradient-gold text-primary-foreground font-medium shadow-gold hover:opacity-90 transition"
+              disabled={loading}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg gradient-gold text-primary-foreground font-medium shadow-gold hover:opacity-90 transition disabled:opacity-50"
             >
-              Create {role === 'owner' ? 'owner' : 'customer'} account{' '}
+              {loading ? 'Creating...' : `Create ${isOwner ? 'owner' : 'customer'} account`}
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
@@ -149,8 +329,7 @@ function Field({ label, icon: Icon, type, value, onChange, placeholder }) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-foreground)' }}
-          className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20 transition text-sm"
+          className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-border/60 bg-surface/50 backdrop-blur-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20 transition text-sm shadow-sm"
         />
       </div>
     </div>

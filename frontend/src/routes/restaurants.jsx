@@ -1,10 +1,10 @@
 import { PageShell } from '@/components/layout/PageShell';
-import { restaurants } from '@/data/restaurants';
 import { useMemo, useState, useEffect } from 'react';
 import { Search, Filter, SlidersHorizontal } from 'lucide-react';
 import { RestaurantCard } from '@/components/restaurants/RestaurantCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
+import { restaurantService } from '@/services/restaurantService';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -21,13 +21,24 @@ const itemVariants = {
 
 export default function RestaurantsPage() {
   const [loading, setLoading] = useState(true);
+  const [restaurants, setRestaurants] = useState([]);
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('Trending');
   const [cuisine, setCuisine] = useState('All');
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1200);
-    return () => clearTimeout(timer);
+    const fetchRestaurants = async () => {
+      try {
+        const res = await restaurantService.getAll();
+        const data = res?.data || [];
+        setRestaurants(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error('Failed to fetch restaurants', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRestaurants();
   }, []);
 
   const sorts = ['Trending', 'Shortest wait', 'Top rated', 'Closest'];
@@ -42,21 +53,20 @@ export default function RestaurantsPage() {
   ];
 
   const list = useMemo(() => {
-    let l = [...restaurants];
+    let l = [...(restaurants || [])];
     if (q)
       l = l.filter(
         (r) =>
-          r.name.toLowerCase().includes(q.toLowerCase()) ||
-          r.cuisine.toLowerCase().includes(q.toLowerCase())
+          (r.name || '').toLowerCase().includes(q.toLowerCase()) ||
+          (r.cuisine || '').toLowerCase().includes(q.toLowerCase())
       );
     if (cuisine !== 'All')
-      l = l.filter((r) => r.cuisine.toLowerCase().includes(cuisine.toLowerCase()));
-    if (sort === 'Shortest wait') l.sort((a, b) => a.waitMinutes - b.waitMinutes);
-    if (sort === 'Top rated') l.sort((a, b) => b.rating - a.rating);
-    if (sort === 'Closest') l.sort((a, b) => a.distanceKm - b.distanceKm);
-    if (sort === 'Trending') l.sort((a, b) => Number(b.trending ?? 0) - Number(a.trending ?? 0));
+      l = l.filter((r) => (r.cuisine || '').toLowerCase().includes(cuisine.toLowerCase()));
+    if (sort === 'Shortest wait') l.sort((a, b) => (a.avgWaitTime || 0) - (b.avgWaitTime || 0));
+    if (sort === 'Top rated') l.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    if (sort === 'Closest') l.sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
     return l;
-  }, [q, sort, cuisine]);
+  }, [q, sort, cuisine, restaurants]);
 
   return (
     <PageShell>

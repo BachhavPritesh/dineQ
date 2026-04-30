@@ -131,6 +131,18 @@
   .shadow-elegant {
     box-shadow: var(--shadow-elegant);
   }
+  .glass-card {
+    background: color-mix(in oklab, var(--card) 85%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  }
+  .glass-panel {
+    background: color-mix(in oklab, var(--surface) 70%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  }
   .noise-bg {
     background-image:
       radial-gradient(circle at 20% 10%, color-mix(in oklab, var(--gold) 8%, transparent), transparent 50%),

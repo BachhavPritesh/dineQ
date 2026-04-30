@@ -9,10 +9,13 @@ import Queue from './routes/queue';
 import Profile from './routes/profile';
 import History from './routes/history';
 import OwnerHistory from './routes/owner-history';
+import AuthCallback from './routes/auth-callback';
+import { Toaster } from '@/components/ui/sonner';
 
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -24,6 +27,7 @@ export default function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/history" element={<History />} />
         <Route path="/owner-history" element={<OwnerHistory />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
       </Routes>
     </BrowserRouter>
   );
