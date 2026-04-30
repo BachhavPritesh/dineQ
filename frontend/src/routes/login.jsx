@@ -123,7 +123,9 @@ export default function LoginPage() {
           </div>
 
           <button
-            onClick={() => (window.location.href = 'http://localhost:5000/api/v1/auth/google')}
+            onClick={() =>
+              (window.location.href = 'https://dineq-a2v9.onrender.com/api/v1/auth/google')
+            }
             className="w-full px-5 py-3 rounded-lg border border-border hover:border-gold/40 transition text-sm font-medium flex items-center justify-center gap-2"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4">
