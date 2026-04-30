@@ -15,13 +15,56 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
   const [tab, setTab] = useState('Account');
   const tabs = ['Account', 'Preferences', 'Favorites', 'Payment'];
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1200);
-    return () => clearTimeout(timer);
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+
+        if (token && storedUser) {
+          const apiUrl = import.meta.env.VITE_API_URL;
+          const res = await fetch(`${apiUrl}/auth/profile`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (res.ok) {
+            const response = await res.json();
+            const userData = response.data;
+            setUser(userData);
+            localStorage.setItem('user', JSON.stringify(userData));
+          } else if (storedUser) {
+            setUser(JSON.parse(storedUser));
+          }
+        } else if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (e) {
+        console.error('Failed to fetch profile', e);
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
   }, []);
+
+  const getInitials = (name) => {
+    if (!name) return '?';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   return (
     <PageShell>
@@ -36,9 +79,17 @@ export default function ProfilePage() {
                 <Skeleton className="h-24 w-24 sm:h-28 sm:w-28 rounded-2xl" />
               ) : (
                 <>
-                  <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-2xl bg-surface-2 border-4 border-card grid place-items-center font-display text-3xl font-bold gradient-text-gold">
-                    JD
-                  </div>
+                  {user?.avatar ? (
+                    <img
+                      src={user.avatar}
+                      alt={user.name}
+                      className="h-24 w-24 sm:h-28 sm:w-28 rounded-2xl object-cover border-4 border-card"
+                    />
+                  ) : (
+                    <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-2xl bg-surface-2 border-4 border-card grid place-items-center font-display text-3xl font-bold gradient-text-gold">
+                      {getInitials(user?.name)}
+                    </div>
+                  )}
                   <button className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full gradient-gold grid place-items-center shadow-gold">
                     <Camera className="h-4 w-4 text-primary-foreground" />
                   </button>
@@ -49,12 +100,14 @@ export default function ProfilePage() {
               {loading ? (
                 <Skeleton className="h-7 w-32" />
               ) : (
-                <h1 className="font-display text-2xl font-bold">Jane Doe</h1>
+                <h1 className="font-display text-2xl font-bold">{user?.name || 'User'}</h1>
               )}
               {loading ? (
                 <Skeleton className="h-4 w-48 mt-1" />
               ) : (
-                <p className="text-sm text-muted-foreground">Member since Jan 2024 · Gold Diner</p>
+                <p className="text-sm text-muted-foreground">
+                  {user?.role === 'staff' ? 'Staff Member' : 'Customer'}
+                </p>
               )}
             </div>
             <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center">
@@ -62,9 +115,9 @@ export default function ProfilePage() {
                 [...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-16" />)
               ) : (
                 <>
-                  <Mini n="24" l="Visits" />
-                  <Mini n="6.2h" l="Saved" />
-                  <Mini n="4.8★" l="Avg rating" />
+                  <Mini n="0" l="Visits" />
+                  <Mini n="0h" l="Saved" />
+                  <Mini n="-" l="Rating" />
                 </>
               )}
             </div>
@@ -88,7 +141,7 @@ export default function ProfilePage() {
             <ProfileSkeleton />
           ) : (
             <>
-              {tab === 'Account' && <AccountTab />}
+              {tab === 'Account' && <AccountTab user={user} />}
               {tab === 'Preferences' && <PrefsTab />}
               {tab === 'Favorites' && <FavoritesTab />}
               {tab === 'Payment' && <PaymentTab />}
@@ -134,7 +187,9 @@ function Mini({ n, l }) {
   );
 }
 
-function AccountTab() {
+function AccountTab({ user }) {
+  const isGoogleUser = !user?.password; // Google users don't have password
+
   return (
     <div className="grid lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 rounded-2xl border border-border/60 bg-card p-6 sm:p-8">
@@ -143,12 +198,17 @@ function AccountTab() {
           Keep your details current for a smoother experience.
         </p>
         <div className="mt-6 grid sm:grid-cols-2 gap-4">
-          <Field label="First name" value="Jane" />
-          <Field label="Last name" value="Doe" />
-          <Field icon={Mail} label="Email" value="jane.doe@example.com" />
-          <Field icon={Phone} label="Phone" value="+1 555 0102" />
-          <Field icon={MapPin} label="City" value="New York, NY" full />
+          <Field label="Name" value={user?.name || ''} />
+          <Field label="Email" icon={Mail} value={user?.email || ''} />
+          <Field label="Role" value={user?.role === 'staff' ? 'Staff Member' : 'Customer'} />
+          <Field label="Account Type" value={isGoogleUser ? 'Google Account' : 'Email/Password'} />
         </div>
+        {user?.avatar && (
+          <div className="mt-4">
+            <p className="text-sm font-medium mb-2">Profile Image</p>
+            <img src={user.avatar} alt={user.name} className="h-20 w-20 rounded-xl object-cover" />
+          </div>
+        )}
         <div className="mt-6 flex gap-3">
           <button className="px-5 py-2.5 rounded-lg gradient-gold text-primary-foreground font-medium shadow-gold hover:opacity-90 text-sm">
             Save changes
@@ -159,7 +219,11 @@ function AccountTab() {
         </div>
       </div>
       <div className="space-y-4">
-        <ActionCard icon={Shield} title="Security" desc="Password, 2FA, sessions" />
+        <ActionCard
+          icon={Shield}
+          title="Security"
+          desc={isGoogleUser ? 'Managed by Google' : 'Password, 2FA, sessions'}
+        />
         <ActionCard icon={Settings} title="Account settings" desc="Language, timezone" />
         <button className="w-full text-left px-5 py-4 rounded-2xl border border-destructive/20 hover:border-destructive/40 transition">
           <p className="text-sm font-medium text-destructive">Delete account</p>

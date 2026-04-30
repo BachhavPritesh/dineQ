@@ -136,7 +136,7 @@ export default function Landing() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
-                className="absolute -bottom-6 -left-6 hidden sm:block bg-card/95 backdrop-blur border border-border rounded-2xl p-4 shadow-elegant w-64"
+                className="absolute -bottom-6 -left-4 sm:-left-6 hidden sm:block glass-card rounded-2xl p-4 shadow-elegant w-64"
               >
                 <div className="flex items-center gap-3">
                   <motion.div
@@ -164,7 +164,7 @@ export default function Landing() {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.7 }}
-                className="absolute -top-4 -right-4 hidden sm:block bg-card/95 backdrop-blur border border-border rounded-2xl p-4 shadow-elegant"
+                className="absolute -top-4 -right-4 sm:-right-6 hidden sm:block glass-card rounded-2xl p-4 shadow-elegant"
               >
                 <div className="flex items-center gap-2">
                   <motion.span
@@ -238,9 +238,10 @@ export default function Landing() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          className="rounded-3xl border border-border/60 bg-surface p-8 sm:p-12"
+          className="rounded-3xl glass-card p-8 sm:p-12 relative overflow-hidden"
         >
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="absolute inset-0 bg-gradient-to-br from-gold/5 via-transparent to-gold/5 opacity-50" />
+          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 relative z-10">
             {[
               { n: "01", t: "Browse", d: "Discover top restaurants with live wait times." },
               { n: "02", t: "Join queue", d: "Tap once. Your spot is held in real-time." },
@@ -296,7 +297,7 @@ export default function Landing() {
         transition={{ duration: 0.6 }}
         className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-20"
       >
-        <div className="relative overflow-hidden rounded-3xl border border-gold/20 p-10 sm:p-16 text-center bg-surface">
+        <div className="relative overflow-hidden rounded-3xl glass-card border-gold/20 p-10 sm:p-16 text-center">
           <motion.div
             animate={{ scale: [1, 1.1, 1] }}
             transition={{ duration: 8, repeat: Infinity }}
@@ -353,8 +354,9 @@ function Feature({ icon: Icon, title, desc }) {
     <motion.div
       whileHover={{ y: -8, scale: 1.02 }}
       transition={{ type: "spring", stiffness: 300 }}
-      className="rounded-2xl border border-border/60 p-6 bg-card hover:border-gold/40 transition group"
+      className="rounded-2xl glass-card p-6 hover:border-gold/40 transition group relative overflow-hidden"
     >
+      <div className="absolute inset-0 bg-gradient-to-br from-gold/0 via-transparent to-gold/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       <motion.div
         whileHover={{ rotate: 5, scale: 1.1 }}
         className="h-11 w-11 rounded-lg bg-gold/10 grid place-items-center text-gold group-hover:bg-gold group-hover:text-primary-foreground transition"
