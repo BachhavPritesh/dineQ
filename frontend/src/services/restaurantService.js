@@ -5,8 +5,10 @@ const getAuthHeader = () => ({
 });
 
 export const restaurantService = {
-  getAll: async () => {
-    const res = await fetch(`${API_URL}/restaurants`);
+  getAll: async (searchQuery = '') => {
+    const params = searchQuery ? new URLSearchParams({ q: searchQuery }) : '';
+    const url = `${API_URL}/restaurants${params ? `?${params}` : ''}`;
+    const res = await fetch(url);
     const data = await res.json();
     if (!res.ok) throw new Error(data.message);
     return data;

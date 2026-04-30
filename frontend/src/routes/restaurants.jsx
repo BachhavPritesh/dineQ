@@ -28,8 +28,9 @@ export default function RestaurantsPage() {
 
   useEffect(() => {
     const fetchRestaurants = async () => {
+      setLoading(true);
       try {
-        const res = await restaurantService.getAll();
+        const res = await restaurantService.getAll(q.trim());
         const data = res?.data || [];
         setRestaurants(Array.isArray(data) ? data : []);
       } catch (e) {
@@ -39,7 +40,7 @@ export default function RestaurantsPage() {
       }
     };
     fetchRestaurants();
-  }, []);
+  }, [q]);
 
   const sorts = ['Trending', 'Shortest wait', 'Top rated', 'Closest'];
   const cuisines = [
@@ -54,19 +55,13 @@ export default function RestaurantsPage() {
 
   const list = useMemo(() => {
     let l = [...(restaurants || [])];
-    if (q)
-      l = l.filter(
-        (r) =>
-          (r.name || '').toLowerCase().includes(q.toLowerCase()) ||
-          (r.cuisine || '').toLowerCase().includes(q.toLowerCase())
-      );
     if (cuisine !== 'All')
       l = l.filter((r) => (r.cuisine || '').toLowerCase().includes(cuisine.toLowerCase()));
     if (sort === 'Shortest wait') l.sort((a, b) => (a.avgWaitTime || 0) - (b.avgWaitTime || 0));
     if (sort === 'Top rated') l.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     if (sort === 'Closest') l.sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
     return l;
-  }, [q, sort, cuisine, restaurants]);
+  }, [sort, cuisine, restaurants]);
 
   return (
     <PageShell>

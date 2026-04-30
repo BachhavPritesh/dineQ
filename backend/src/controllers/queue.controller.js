@@ -48,9 +48,9 @@ export const joinQueue = asyncHandler(async (req, res) => {
     const avgWaitTime =
       queue.length > 0
         ? calculateWaitTime(
-          queue.length,
-          restaurant?.avgSeatingTimeMinutes || 15
-        )
+            queue.length,
+            restaurant?.avgSeatingTimeMinutes || 15
+          )
         : 0;
 
     io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
@@ -86,10 +86,46 @@ export const getQueueByRestaurant = asyncHandler(async (req, res) => {
 });
 
 export const seatCustomer = asyncHandler(async (req, res) => {
-  const result = await queueService.seatCustomer(
-    req.params.id,
-    req.body.restaurantId
+  const queueEntry = await Queue.findById(req.params.id);
+
+  if (!queueEntry) {
+    return res
+      .status(404)
+      .json({ success: false, message: 'Queue entry not found' });
+  }
+
+  const restaurantId = queueEntry.restaurant.toString();
+
+  const result = await queueService.seatCustomer(req.params.id, restaurantId);
+
+  const io = getIO();
+
+  const customerId = queueEntry.customer.toString();
+  console.log(
+    `[seatCustomer] Emitting CUSTOMER_SEATED to room: customer:${customerId}`
   );
+
+  io.to(SOCKET_ROOMS.CUSTOMER(customerId)).emit(SOCKET_EVENTS.CUSTOMER_SEATED, {
+    queueId: result._id.toString(),
+    message: 'You have been seated! Enjoy your meal.',
+  });
+
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.CUSTOMER_SEATED,
+    {
+      queueId: result._id,
+      position: result.position,
+    }
+  );
+
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.HISTORY_UPDATED,
+    {
+      action: 'seated',
+      queueId: result._id,
+    }
+  );
+
   ApiResponse.success(res, 'Customer seated successfully', result);
 });
 
@@ -98,18 +134,141 @@ export const markNoShow = asyncHandler(async (req, res) => {
     req.params.id,
     req.body.restaurantId
   );
+
+  const restaurantId = result.restaurant.toString
+    ? result.restaurant.toString()
+    : result.restaurant._id?.toString() || result.restaurant;
+
+  const io = getIO();
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.HISTORY_UPDATED,
+    {
+      action: 'no_show',
+      queueId: result._id,
+    }
+  );
+
   ApiResponse.success(res, 'Marked as no-show', result);
 });
 
 export const leaveQueue = asyncHandler(async (req, res) => {
   const result = await queueService.leaveQueue(req.params.id, req.user._id);
+
+  const restaurantId = result.restaurant.toString
+    ? result.restaurant.toString()
+    : result.restaurant._id?.toString() || result.restaurant;
+
+  const io = getIO();
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.CUSTOMER_LEFT,
+    {
+      queueId: result._id,
+    }
+  );
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.HISTORY_UPDATED,
+    {
+      action: 'left',
+      queueId: result._id,
+    }
+  );
+
+  const queue = await Queue.find({
+    restaurant: restaurantId,
+    status: 'waiting',
+  })
+    .sort({ position: 1 })
+    .populate('customer', 'name phone');
+
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.QUEUE_UPDATED,
+    {
+      queue: queue.map((q) => ({
+        id: q._id,
+        customerName: q.customer?.name || 'Guest',
+        phone: q.customer?.phone || '',
+        partySize: q.partySize,
+        position: q.position,
+        estimatedWaitMinutes: q.estimatedWaitMinutes,
+        status: q.status,
+        preOrders: q.preOrders || [],
+        notes: q.notes || '',
+        joinedAt: q.joinedAt,
+      })),
+      queueLength: queue.length,
+    }
+  );
+
+  ApiResponse.success(res, 'Left queue successfully', result);
+});
+
+export const leaveCustomerQueue = asyncHandler(async (req, res) => {
+  const queueEntry = await Queue.findOne({
+    customer: req.user._id,
+    status: { $in: ['waiting', 'seated'] },
+  });
+
+  if (!queueEntry) {
+    return res
+      .status(404)
+      .json({ success: false, message: 'No active queue entry found' });
+  }
+
+  const result = await queueService.leaveQueue(queueEntry._id, req.user._id);
+
+  const restaurantId = result.restaurant.toString
+    ? result.restaurant.toString()
+    : result.restaurant._id?.toString() || result.restaurant;
+
+  const io = getIO();
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.CUSTOMER_LEFT,
+    {
+      queueId: result._id,
+    }
+  );
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.HISTORY_UPDATED,
+    {
+      action: 'left',
+      queueId: result._id,
+    }
+  );
+
+  const queue = await Queue.find({
+    restaurant: restaurantId,
+    status: 'waiting',
+  })
+    .sort({ position: 1 })
+    .populate('customer', 'name phone');
+
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.QUEUE_UPDATED,
+    {
+      queue: queue.map((q) => ({
+        id: q._id,
+        customerName: q.customer?.name || 'Guest',
+        phone: q.customer?.phone || '',
+        partySize: q.partySize,
+        position: q.position,
+        estimatedWaitMinutes: q.estimatedWaitMinutes,
+        status: q.status,
+        preOrders: q.preOrders || [],
+        notes: q.notes || '',
+        joinedAt: q.joinedAt,
+      })),
+      queueLength: queue.length,
+    }
+  );
+
   ApiResponse.success(res, 'Left queue successfully', result);
 });
 
 export const getCustomerQueue = asyncHandler(async (req, res) => {
+  const restaurantId = req.params.restaurantId || req.query.restaurantId;
   const result = await queueService.getCustomerQueue(
     req.user._id,
-    req.params.restaurantId
+    restaurantId
   );
   ApiResponse.success(res, 'Customer queue fetched', result);
 });
@@ -119,6 +278,20 @@ export const removeByOwner = asyncHandler(async (req, res) => {
     req.params.id,
     req.body.restaurantId
   );
+
+  const restaurantId = result.restaurant.toString
+    ? result.restaurant.toString()
+    : result.restaurant._id?.toString() || result.restaurant;
+
+  const io = getIO();
+  io.to(SOCKET_ROOMS.RESTAURANT(restaurantId)).emit(
+    SOCKET_EVENTS.HISTORY_UPDATED,
+    {
+      action: 'removed',
+      queueId: result._id,
+    }
+  );
+
   ApiResponse.success(res, 'Party removed from queue by owner', result);
 });
 
@@ -157,9 +330,11 @@ export const sendReminder = asyncHandler(async (req, res) => {
 export default {
   joinQueue,
   getQueueByRestaurant,
+  getCustomerQueue,
   seatCustomer,
   markNoShow,
   leaveQueue,
-  getCustomerQueue,
+  leaveCustomerQueue,
+  removeByOwner,
   sendReminder,
 };

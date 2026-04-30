@@ -35,6 +35,18 @@ import { queueService } from '@/services/queueService';
 import { connectSocket } from '@/socket/socketClient';
 import JoinNotification from '@/components/queue/JoinNotification';
 
+const notificationSound = '/mixkit-correct-answer-tone-2870.wav';
+
+let audioCache = null;
+const getNotificationAudio = () => {
+  if (!audioCache) {
+    audioCache = new Audio(notificationSound);
+    audioCache.volume = 0.5;
+  }
+  audioCache.currentTime = 0;
+  return audioCache;
+};
+
 const waitTone = (minutes) => {
   if (minutes <= 10) return { color: 'text-green-500', dot: 'bg-green-500', label: 'Low' };
   if (minutes <= 20) return { color: 'text-yellow-500', dot: 'bg-yellow-500', label: 'Moderate' };
@@ -241,71 +253,8 @@ export default function DashboardPage() {
 
     const handleQueueUpdate = (data) => {
       const queueData = data.queue || [];
-      console.log('queue_updated received:', queueData);
       if (!Array.isArray(queueData)) return;
       if (!initialLoadComplete) return;
-
-      if (prevQueueRef.current === null) {
-        const formatted = queueData.map((q, idx) => ({
-          id: q.id || q._id,
-          customer: q.customer || { name: q.customerName || 'Guest' },
-          partySize: q.partySize,
-          position: q.position || idx + 1,
-          estimatedWaitMinutes: q.estimatedWaitMinutes,
-          status: q.status || 'waiting',
-          preOrders: q.preOrders || [],
-          notes: q.notes || '',
-        }));
-        setPrevQueue(formatted);
-        prevQueueRef.current = formatted;
-        setParties(
-          queueData.map((q, idx) => ({
-            id: q._id || q.id,
-            name: q.customer?.name || q.customerName || 'Guest',
-            partySize: q.partySize,
-            position: q.position || idx + 1,
-            waitTime: q.estimatedWaitMinutes || (idx + 1) * waitPerParty,
-            status: 'waiting',
-            preOrders: q.preOrders || [],
-            notes: q.notes || '',
-          }))
-        );
-        return;
-      }
-
-      const newEntries = queueData.filter(
-        (newEntry) =>
-          (newEntry.status === 'waiting' || newEntry.status === undefined) &&
-          !prevQueueRef.current.some((prev) => prev.id === (newEntry.id || newEntry._id))
-      );
-
-      console.log('newEntries:', newEntries);
-
-      if (newEntries.length > 0) {
-        setNewJoins((prev) => {
-          const withTimestamps = newEntries.map((e) => ({
-            id: e.id || e._id,
-            customer: { name: e.customerName || e.customer?.name || 'Guest' },
-            partySize: e.partySize,
-            position: e.position,
-            estimatedWaitMinutes: e.estimatedWaitMinutes,
-            status: e.status || 'waiting',
-            preOrders: e.preOrders || [],
-            notes: e.notes || '',
-            timestamp: Date.now(),
-          }));
-          const updated = [...prev, ...withTimestamps];
-          if (updated.length > 5) {
-            const excess = updated.slice(0, updated.length - 5);
-            const visible = updated.slice(-5);
-            setPendingJoins((prevPending) => [...prevPending, ...excess]);
-            setPendingToast((prev) => ({ count: prev.count + excess.length, visible: true }));
-            setPendingToastTimer();
-            return visible;
-          }
-          return updated;
-        });
-      }
 
       const formattedParties = queueData.map((q, idx) => ({
         id: q._id || q.id,
@@ -335,10 +284,36 @@ export default function DashboardPage() {
 
     socket.on('queue_updated', handleQueueUpdate);
 
-    const handlePreorderReceived = (data) => {
+    const handleCustomerJoined = (data) => {
+      getNotificationAudio().play();
       if (!initialLoadComplete) return;
       const newJoin = {
-        id: data.orderId,
+        id: data.id,
+        customer: { name: data.customerName || 'Guest' },
+        partySize: data.partySize,
+        position: data.position,
+        estimatedWaitMinutes: data.estimatedWaitMinutes,
+        preOrders: data.preOrders || [],
+        notes: data.notes || '',
+        timestamp: Date.now(),
+        totalPrice: (data.preOrders || []).reduce(
+          (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
+          0
+        ),
+      };
+      setNewJoins((prev) => {
+        if (prev.some((j) => j.id === newJoin.id)) return prev;
+        return [...prev, newJoin];
+      });
+    };
+
+    socket.on('customer_joined', handleCustomerJoined);
+
+    const handlePreorderReceived = (data) => {
+      getNotificationAudio().play();
+      if (!initialLoadComplete) return;
+      const newJoin = {
+        id: data.queueId,
         customer: { name: data.customerName || 'Guest' },
         partySize: data.partySize,
         position: data.position,
@@ -348,15 +323,55 @@ export default function DashboardPage() {
         timestamp: Date.now(),
         totalPrice: data.totalAmount,
       };
-      setNewJoins((prev) => [...prev, newJoin]);
+      setNewJoins((prev) => {
+        if (prev.some((j) => j.id === newJoin.id)) return prev;
+        return [...prev, newJoin];
+      });
     };
 
     socket.on('preorder_received', handlePreorderReceived);
 
+    const handleWaitTimeUpdate = (data) => {
+      if (!initialLoadComplete) return;
+      if (data.queue && Array.isArray(data.queue)) {
+        setParties((prev) =>
+          prev.map((p) => {
+            const update = data.queue.find((q) => q.id === p.id);
+            if (update) {
+              return { ...p, waitTime: update.estimatedWaitMinutes };
+            }
+            return p;
+          })
+        );
+      }
+    };
+
+    socket.on('wait_time_update', handleWaitTimeUpdate);
+
+    socket.on('customer_ready_request', (data) => {
+      getNotificationAudio().play();
+      toast.info(`${data.customerName} wants to be notified`, {
+        description: 'They are waiting for their table',
+      });
+    });
+
+    socket.on('customer_seated', (data) => {
+      setParties((prev) =>
+        prev.map((p) =>
+          p.id === data.queueId
+            ? { ...p, status: 'seated', position: data.position || p.position }
+            : p
+        )
+      );
+    });
+
     return () => {
       socket.off('queue_updated', handleQueueUpdate);
-      socket.off('customer_joined');
+      socket.off('customer_joined', handleCustomerJoined);
       socket.off('preorder_received', handlePreorderReceived);
+      socket.off('wait_time_update', handleWaitTimeUpdate);
+      socket.off('customer_ready_request');
+      socket.off('customer_seated');
       if (pendingToastTimer.current) clearTimeout(pendingToastTimer.current);
     };
   }, [restaurantId, waitPerParty, initialLoadComplete]);
@@ -376,11 +391,15 @@ export default function DashboardPage() {
     ? Math.round(filteredParties.reduce((sum, p) => sum + p.waitTime, 0) / filteredParties.length)
     : 0;
 
-  const handleNotify = useCallback(async (partyId) => {
+  const handleNotify = useCallback(async (party) => {
+    const partyId = party.id || party._id;
     setReminderSending((prev) => ({ ...prev, [partyId]: true }));
     try {
       const socket = connectSocket();
-      socket.emit('notify_customer', { customerId: partyId, message: 'Your table is ready!' });
+      socket.emit('notify_customer', {
+        customerId: partyId,
+        queueEntryId: partyId,
+      });
       setTimeout(() => {
         setReminderSending((prev) => ({ ...prev, [partyId]: false }));
       }, 1000);
@@ -389,8 +408,15 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const handleSeat = useCallback((partyId) => {
-    setParties((prev) => prev.map((p) => (p.id === partyId ? { ...p, status: 'seated' } : p)));
+  const handleSeat = useCallback(async (partyId) => {
+    try {
+      await queueService.seatCustomer(partyId);
+      setParties((prev) => prev.filter((p) => p.id !== partyId));
+      toast.success('Customer seated successfully');
+    } catch (e) {
+      console.error('Failed to seat customer', e);
+      toast.error(e.message || 'Failed to seat customer');
+    }
   }, []);
 
   const handleRemove = useCallback(
@@ -410,21 +436,9 @@ export default function DashboardPage() {
     [restaurantId]
   );
 
-  const handleDismissJoin = useCallback(
-    (joinId) => {
-      setNewJoins((prev) => prev.filter((j) => j.id !== joinId));
-      if (pendingJoins.length > 0) {
-        const [promoted, ...rest] = pendingJoins;
-        setPendingJoins(rest);
-        setNewJoins((prev) => [...prev, promoted]);
-        setPendingToast((prev) => ({
-          count: Math.max(0, prev.count - 1),
-          visible: prev.count - 1 > 0,
-        }));
-      }
-    },
-    [pendingJoins]
-  );
+  const handleDismissJoin = useCallback((joinId) => {
+    setNewJoins((prev) => prev.filter((j) => j.id !== joinId));
+  }, []);
 
   const handleViewDetails = useCallback((join) => {
     // Transform join object to match selectedParty shape expected by detail modal
@@ -768,26 +782,23 @@ export default function DashboardPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            {party.status === 'ready' ? (
-                              <Button
-                                size="sm"
-                                onClick={() => handleSeat(party.id)}
-                                className="gradient-gold text-primary-foreground shadow-gold"
-                              >
-                                <CheckCircle2 className="h-4 w-4 mr-1" />
-                                Seat
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleNotify(party.id)}
-                                disabled={reminderSending[party.id]}
-                              >
-                                <Bell className="h-4 w-4 mr-1" />
-                                {reminderSending[party.id] ? 'Sent' : 'Notify'}
-                              </Button>
-                            )}
+                            <Button
+                              size="sm"
+                              onClick={() => handleSeat(party.id)}
+                              className="gradient-gold text-primary-foreground shadow-gold"
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-1" />
+                              Seat
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleNotify(party)}
+                              disabled={reminderSending[party.id]}
+                            >
+                              <Bell className="h-4 w-4 mr-1" />
+                              {reminderSending[party.id] ? 'Sent' : 'Notify'}
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1132,29 +1143,26 @@ export default function DashboardPage() {
                   >
                     Close
                   </Button>
-                  {selectedParty.status === 'ready' ? (
-                    <Button
-                      onClick={() => {
-                        handleSeat(selectedParty.id);
-                        setSelectedParty(null);
-                      }}
-                      className="flex-1 gradient-gold text-primary-foreground shadow-gold"
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Seat
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => {
-                        handleNotify(selectedParty.id);
-                        setSelectedParty(null);
-                      }}
-                      className="flex-1 gradient-gold text-primary-foreground shadow-gold"
-                    >
-                      <Bell className="h-4 w-4 mr-2" />
-                      Notify Ready
-                    </Button>
-                  )}
+                  <Button
+                    onClick={() => {
+                      handleSeat(selectedParty.id);
+                      setSelectedParty(null);
+                    }}
+                    className="flex-1 gradient-gold text-primary-foreground shadow-gold"
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Seat
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      handleNotify(selectedParty);
+                    }}
+                    className="flex-1"
+                  >
+                    <Bell className="h-4 w-4 mr-2" />
+                    Notify
+                  </Button>
                 </div>
               </motion.div>
             </motion.div>

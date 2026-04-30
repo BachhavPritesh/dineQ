@@ -8,7 +8,9 @@ export const SOCKET_EVENTS = {
   CUSTOMER_JOINED: 'customer_joined',
   CUSTOMER_SEATED: 'customer_seated',
   CUSTOMER_LEFT: 'customer_left',
+  CUSTOMER_READY_REQUEST: 'customer_ready_request',
   ORDER_STATUS_UPDATED: 'order_status_updated',
+  HISTORY_UPDATED: 'history_updated',
   ERROR: 'socket_error',
 };
 

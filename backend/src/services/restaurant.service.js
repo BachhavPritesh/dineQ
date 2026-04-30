@@ -30,8 +30,15 @@ export const getMyRestaurant = async (ownerId) => {
   };
 };
 
-export const getAllRestaurants = async () => {
-  const restaurants = await Restaurant.find({ isOpen: true }).sort({ name: 1 });
+export const getAllRestaurants = async (searchQuery = '') => {
+  let query = { isOpen: true };
+
+  if (searchQuery) {
+    const regex = new RegExp(searchQuery, 'i');
+    query.$or = [{ name: regex }, { cuisine: regex }, { address: regex }];
+  }
+
+  const restaurants = await Restaurant.find(query).sort({ name: 1 });
 
   const restaurantsWithQueue = await Promise.all(
     restaurants.map(async (restaurant) => {

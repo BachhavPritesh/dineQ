@@ -1,12 +1,12 @@
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { PageShell } from '@/components/layout/PageShell';
-import { Bell, MapPin, Users, Clock, ShoppingBag, X, Plus, Minus, BellRing } from 'lucide-react';
+import { Bell, MapPin, Users, Clock, ShoppingBag, X, Plus, Minus } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { restaurantService } from '@/services/restaurantService';
 import { queueService } from '@/services/queueService';
-import { connectSocket, disconnectSocket } from '@/socket/socketClient';
-import { motion, AnimatePresence } from 'framer-motion';
+import { connectSocket } from '@/socket/socketClient';
+import { motion } from 'framer-motion';
 
 const defaultImage =
   'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1400&q=80';
@@ -25,7 +25,6 @@ export default function QueuePage() {
   const [cart, setCart] = useState({});
   const [joined, setJoined] = useState(false);
   const [queueEntry, setQueueEntry] = useState(null);
-  const [reminder, setReminder] = useState(null); // reminder message from owner
 
   useEffect(() => {
     const fetchRestaurant = async () => {
@@ -37,6 +36,13 @@ export default function QueuePage() {
         const res = await restaurantService.getById(restaurantId);
         const data = res.data || res;
         setRestaurant(data);
+
+        const queueRes = await queueService.getMyQueue(restaurantId);
+        const queueData = queueRes.data || queueRes;
+        if (queueData && queueData.status === 'waiting') {
+          setQueueEntry(queueData);
+          setJoined(true);
+        }
       } catch (e) {
         console.error('Failed to fetch restaurant', e);
         setError('Failed to load restaurant details');
@@ -70,28 +76,14 @@ export default function QueuePage() {
       setQueueEntry(data);
       setJoined(true);
       setShowJoinModal(false);
+      setCart({});
+      toast.success('Joined the queue!');
     } catch (e) {
       setError(e.message || 'Failed to join queue');
     } finally {
       setJoining(false);
     }
   };
-
-  // Socket: listen for TABLE_READY reminder from owner
-  useEffect(() => {
-    if (!joined || !queueEntry) return;
-    const socket = connectSocket();
-    const customerId = queueEntry?.customer?._id || queueEntry?.customer || queueEntry?._id;
-    if (customerId) {
-      socket.emit('join_customer_room', { customerId });
-    }
-    socket.on('table_ready', (data) => {
-      setReminder(data.message || '⏰ Your table is almost ready! Please be nearby.');
-    });
-    return () => {
-      socket.off('table_ready');
-    };
-  }, [joined, queueEntry]);
 
   const add = (id) => {
     setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
@@ -105,34 +97,29 @@ export default function QueuePage() {
       return next;
     });
 
-  const handleConfirmPreorder = () => {
-    if (cartCount === 0 || !queueEntry) return;
-
-    const preOrderItems = Object.entries(cart)
-      .map(([id, qty]) => {
-        const menuItem = findMenuItem(id);
-        if (!menuItem) return null;
-        return {
-          name: menuItem.name,
-          price: menuItem.price,
-          category: menuItem.category,
-          image: menuItem.image,
-          quantity: qty,
-        };
-      })
-      .filter(Boolean);
-
-    const socket = connectSocket();
-    socket.emit('preorder_received', {
-      queueId: queueEntry._id,
-      items: preOrderItems,
-      totalAmount: cartTotal,
-      customerId: queueEntry.customer?._id || queueEntry.customer,
+  const menu = restaurant?.menu || [];
+  const findMenuItem = (id) => {
+    if (!id) return null;
+    const prefix = 'menu-';
+    if (id.startsWith(prefix)) {
+      const idx = parseInt(id.slice(prefix.length), 10);
+      if (!isNaN(idx) && idx >= 0 && idx < menu.length) return menu[idx];
+    }
+    const strId = String(id);
+    return menu.find((m, idx) => {
+      const mId = String(m._id || m.id || `menu-${idx}`);
+      return mId === strId;
     });
-
-    toast.success('Pre-order confirmed! The restaurant will start preparing when you arrive.');
-    setCart({});
   };
+
+  const cartTotal = Object.entries(cart).reduce((sum, [id, q]) => {
+    const item = findMenuItem(id);
+    const price = Number(item?.price) || 0;
+    return sum + price * Number(q);
+  }, 0);
+  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
+  const image = restaurant?.image || defaultImage;
+  const waitMinutes = restaurant?.avgWaitTime || restaurant?.avgSeatingTimeMinutes || 15;
 
   if (loading) {
     return (
@@ -164,233 +151,23 @@ export default function QueuePage() {
     );
   }
 
-  const menu = restaurant?.menu || [];
-  const findMenuItem = (id) => {
-    const strId = String(id);
-    return menu.find((m, idx) => {
-      const mId = String(m._id || m.id || `menu-${idx}`);
-      return mId === strId;
-    });
-  };
-
-  const cartTotal = Object.entries(cart).reduce((sum, [id, q]) => {
-    const item = findMenuItem(id);
-    const price = Number(item?.price) || 0;
-    return sum + price * Number(q);
-  }, 0);
-  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
-  const image = restaurant?.image || defaultImage;
-  const waitMinutes = restaurant?.avgWaitTime || restaurant?.avgSeatingTimeMinutes || 15;
-
   if (joined && queueEntry) {
     return (
       <PageShell>
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
-          {/* Reminder banner from restaurant owner */}
-          <AnimatePresence>
-            {reminder && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="mb-6 flex items-center gap-3 p-4 rounded-2xl border border-gold/50 bg-gold/10 backdrop-blur-sm shadow-elegant"
-              >
-                <div className="h-10 w-10 rounded-full gradient-gold flex items-center justify-center flex-shrink-0">
-                  <BellRing className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-sm">Restaurant Alert</p>
-                  <p className="text-sm text-foreground">{reminder}</p>
-                </div>
-                <button
-                  onClick={() => setReminder(null)}
-                  className="text-muted-foreground hover:text-foreground transition"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="rounded-3xl border border-gold/20 bg-card overflow-hidden">
-                <div className="relative h-48 sm:h-56">
-                  <img src={image} alt={restaurant?.name} className="h-full w-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
-                  <div className="absolute bottom-4 left-5 right-5">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background/80 backdrop-blur text-xs font-medium">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[oklch(0.7_0.16_145)] animate-pulse" />{' '}
-                      Live queue
-                    </span>
-                    <h1 className="mt-2 text-2xl sm:text-3xl font-display font-bold">
-                      {restaurant?.name}
-                    </h1>
-                    <p className="text-sm text-muted-foreground inline-flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5" /> {restaurant?.address} ·{' '}
-                      {restaurant?.cuisine}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-6 sm:p-8">
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <Stat icon={Users} label="Position" value={`#${queueEntry.position || 1}`} />
-                    <Stat
-                      icon={Clock}
-                      label="ETA"
-                      value={`${queueEntry.estimatedWaitMinutes || waitMinutes} min`}
-                      accent
-                    />
-                    <Stat icon={Bell} label="Party of" value={queueEntry.partySize || partySize} />
-                  </div>
-
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <button className="px-4 py-2.5 rounded-lg gradient-gold text-primary-foreground font-medium shadow-gold hover:opacity-90 text-sm">
-                      Notify me when ready
-                    </button>
-                    <button
-                      onClick={() => {
-                        setJoined(false);
-                        setQueueEntry(null);
-                      }}
-                      className="px-4 py-2.5 rounded-lg border border-border hover:border-destructive/40 hover:text-destructive text-sm inline-flex items-center gap-1.5"
-                    >
-                      <X className="h-4 w-4" /> Leave queue
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-border/60 bg-card p-6 sm:p-8">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <h2 className="font-display text-2xl font-semibold">
-                      Pre-order while you wait
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Your food fires the moment you're seated.
-                    </p>
-                  </div>
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-gold/10 text-gold">
-                    Saves ~14 min
-                  </span>
-                </div>
-
-                <ul className="mt-6 space-y-3">
-                  {menu.map((m) => {
-                    const itemId = m._id || m.id;
-                    const qty = cart[itemId] ?? 0;
-                    return (
-                      <li
-                        key={itemId}
-                        className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-surface/30 hover:border-gold/30 transition-all"
-                      >
-                        {m.image ? (
-                          <img
-                            src={m.image}
-                            alt={m.name}
-                            className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-14 h-14 rounded-lg bg-surface flex items-center justify-center flex-shrink-0 text-muted-foreground/40 text-xl">
-                            🍽
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm">{m.name}</p>
-                          {m.description && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {m.description}
-                            </p>
-                          )}
-                          <p className="text-sm text-gold font-semibold">${m.price.toFixed(2)}</p>
-                        </div>
-                        {qty === 0 ? (
-                          <button
-                            onClick={() => add(itemId)}
-                            className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-border hover:border-gold hover:text-gold text-sm inline-flex items-center gap-1 transition"
-                          >
-                            <Plus className="h-3.5 w-3.5" /> Add
-                          </button>
-                        ) : (
-                          <div className="flex-shrink-0 inline-flex items-center gap-2 rounded-lg border border-gold/40 bg-gold/5 px-1">
-                            <button
-                              onClick={() => sub(itemId)}
-                              className="p-1.5 hover:text-gold transition"
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <span className="text-sm font-medium w-5 text-center">{qty}</span>
-                            <button
-                              onClick={() => add(itemId)}
-                              className="p-1.5 hover:text-gold transition"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </div>
-
-            <aside className="space-y-6">
-              <div className="rounded-3xl border border-border/60 bg-card p-6 sticky top-24">
-                <h3 className="font-display text-lg font-semibold flex items-center gap-2">
-                  <ShoppingBag className="h-5 w-5 text-gold" /> Your pre-order
-                </h3>
-
-                {cartCount === 0 ? (
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    No items yet. Add dishes from the menu to skip the kitchen wait.
-                  </p>
-                ) : (
-                  <ul className="mt-4 space-y-2 text-sm">
-                    {Object.entries(cart).map(([id, q]) => {
-                      const menuItem = findMenuItem(id);
-                      return (
-                        <li key={id} className="flex justify-between gap-2">
-                          <span className="text-muted-foreground truncate">
-                            {q}× {menuItem?.name}
-                          </span>
-                          <span className="font-medium">
-                            ${((menuItem?.price || 0) * q).toFixed(2)}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-
-                <div className="mt-5 pt-5 border-t border-border/60 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Total</span>
-                  <span className="font-display text-xl font-bold gradient-text-gold">
-                    ${cartTotal.toFixed(2)}
-                  </span>
-                </div>
-
-                <button
-                  onClick={handleConfirmPreorder}
-                  disabled={cartCount === 0}
-                  className="mt-4 w-full px-4 py-2.5 rounded-lg gradient-gold text-primary-foreground font-medium shadow-gold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90"
-                >
-                  Confirm pre-order
-                </button>
-
-                <p className="mt-3 text-xs text-muted-foreground text-center">
-                  You won't be charged until you sit down.
-                </p>
-              </div>
-
-              <Link
-                to="/restaurants"
-                className="block text-center text-sm text-gold hover:underline"
-              >
-                ← Browse other restaurants
-              </Link>
-            </aside>
+          <div className="rounded-2xl border border-gold/50 bg-gold/10 backdrop-blur-sm p-6 text-center">
+            <Bell className="h-10 w-10 mx-auto text-gold" />
+            <h2 className="mt-4 text-xl font-display font-bold">You're already in queue</h2>
+            <p className="mt-2 text-muted-foreground">
+              Position #{queueEntry.position || 1} · ~{queueEntry.estimatedWaitMinutes || 0} min
+              wait
+            </p>
+            <button
+              onClick={() => navigate('/my-queue')}
+              className="mt-4 px-6 py-2.5 rounded-lg gradient-gold text-primary-foreground font-medium shadow-gold hover:opacity-90 text-sm"
+            >
+              View My Queue
+            </button>
           </div>
         </section>
       </PageShell>
@@ -445,7 +222,7 @@ export default function QueuePage() {
                 <div>
                   <h2 className="font-display text-2xl font-semibold">Menu</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Preview dishes. Order after joining the queue.
+                    Preview dishes. Pre-order after joining the queue.
                   </p>
                 </div>
               </div>
@@ -455,7 +232,7 @@ export default function QueuePage() {
               ) : (
                 <ul className="mt-6 space-y-3">
                   {menu.map((m, idx) => {
-                    const itemId = m._id || m.id || `menu-${idx}`;
+                    const itemId = `menu-${idx}`;
                     const qty = cart[itemId] ?? 0;
                     return (
                       <li
@@ -484,10 +261,29 @@ export default function QueuePage() {
                             ${m.price.toFixed(2)}
                           </p>
                         </div>
-                        {m.category && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gold/10 text-gold flex-shrink-0">
-                            {m.category}
-                          </span>
+                        {qty === 0 ? (
+                          <button
+                            onClick={() => add(itemId)}
+                            className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-border hover:border-gold hover:text-gold text-sm inline-flex items-center gap-1 transition"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add
+                          </button>
+                        ) : (
+                          <div className="flex-shrink-0 inline-flex items-center gap-2 rounded-lg border border-gold/40 bg-gold/5 px-1">
+                            <button
+                              onClick={() => sub(itemId)}
+                              className="p-1.5 hover:text-gold transition"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <span className="text-sm font-medium w-5 text-center">{qty}</span>
+                            <button
+                              onClick={() => add(itemId)}
+                              className="p-1.5 hover:text-gold transition"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         )}
                       </li>
                     );
@@ -571,6 +367,15 @@ export default function QueuePage() {
               </button>
             </div>
 
+            {cartCount > 0 && (
+              <div className="mt-4 p-3 rounded-lg bg-gold/5 border border-gold/20">
+                <p className="text-xs font-medium text-gold mb-1">
+                  Pre-order included ({cartCount} items)
+                </p>
+                <p className="text-xs text-muted-foreground">Total: ${cartTotal.toFixed(2)}</p>
+              </div>
+            )}
+
             {error && <p className="mt-4 text-sm text-red-500 text-center">{error}</p>}
 
             <div className="mt-6 flex gap-3">
@@ -595,15 +400,13 @@ export default function QueuePage() {
   );
 }
 
-function Stat({ icon: Icon, label, value, accent }) {
+function Stat({ icon: Icon, label, value }) {
   return (
     <div className="rounded-2xl bg-surface p-4">
       <div className="text-xs text-muted-foreground inline-flex items-center gap-1 justify-center">
         <Icon className="h-3.5 w-3.5" /> {label}
       </div>
-      <p className={`mt-1 font-display text-2xl font-bold ${accent ? 'gradient-text-gold' : ''}`}>
-        {value}
-      </p>
+      <p className="mt-1 font-display text-2xl font-bold">{value}</p>
     </div>
   );
 }
