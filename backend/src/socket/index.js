@@ -20,7 +20,7 @@ let io = null;
 export const initializeSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: ['https://dine-q-e3bx.vercel.app'],
+      origin: ['https://dine-q-e3bx.vercel.app', 'https://dineq.netlify.app'],
       methods: ['GET', 'POST'],
       credentials: true,
     },
