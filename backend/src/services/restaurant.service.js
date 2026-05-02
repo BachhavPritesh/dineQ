@@ -27,6 +27,8 @@ export const getMyRestaurant = async (ownerId) => {
       queueCount,
       restaurant.avgSeatingTimeMinutes
     ),
+    rating: restaurant.rating,
+    reviewCount: restaurant.reviewCount,
   };
 };
 
@@ -61,6 +63,8 @@ export const getAllRestaurants = async (searchQuery = '') => {
           restaurant.avgSeatingTimeMinutes
         ),
         menu: restaurant.menu,
+        rating: restaurant.rating,
+        reviewCount: restaurant.reviewCount,
       };
     })
   );
@@ -95,6 +99,8 @@ export const getRestaurantById = async (restaurantId) => {
       restaurant.avgSeatingTimeMinutes
     ),
     createdAt: restaurant.createdAt,
+    rating: restaurant.rating,
+    reviewCount: restaurant.reviewCount,
   };
 };
 

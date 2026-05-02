@@ -35,9 +35,11 @@ export function RestaurantCard({ r }) {
         <img src={image} alt={name} loading="lazy" className="h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
         <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background/80 backdrop-blur text-xs font-medium">
-          <Star className="h-3 w-3 fill-gold text-gold" />
-          0.0
-          <span className="text-muted-foreground">(0)</span>
+          <Star
+            className={`h-3 w-3 ${r.rating > 0 ? 'fill-gold text-gold' : 'text-muted-foreground/30'}`}
+          />
+          {r.rating ? r.rating.toFixed(1) : 'N/A'}
+          <span className="text-muted-foreground">({r.reviewCount || 0})</span>
         </div>
       </motion.div>
 
