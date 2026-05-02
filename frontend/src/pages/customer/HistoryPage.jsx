@@ -2,9 +2,14 @@ import { PageShell } from '@/components/layout/PageShell';
 import { Calendar, Clock, MapPin, Star, Receipt, RotateCw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { toast } from 'sonner';
+import { ratingService } from '@/services/ratingService';
+import RatingDialog from '@/components/rating/RatingDialog';
 
 export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
+  const [showRatingDialog, setShowRatingDialog] = useState(false);
+  const [ratingTarget, setRatingTarget] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1000);
@@ -173,11 +178,22 @@ export default function HistoryPage() {
                       <button className="px-3 py-2 rounded-lg border border-border hover:border-gold hover:text-gold text-sm inline-flex items-center gap-1.5">
                         <RotateCw className="h-3.5 w-3.5" /> Book again
                       </button>
-                      {v.status === 'completed' && (
-                        <button className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground text-sm">
-                          Receipt
-                        </button>
-                      )}
+                      {v.status === 'completed' &&
+                        (v.rating > 0 ? (
+                          <div className="px-3 py-2 rounded-lg bg-gold/10 text-gold text-sm font-medium">
+                            Rated
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setRatingTarget({ id: v.id, name: v.name });
+                              setShowRatingDialog(true);
+                            }}
+                            className="px-3 py-2 rounded-lg gradient-gold text-primary-foreground text-sm font-medium shadow-gold hover:opacity-90"
+                          >
+                            Rate
+                          </button>
+                        ))}
                     </div>
                   </div>
                 </div>
@@ -186,6 +202,28 @@ export default function HistoryPage() {
           </ul>
         )}
       </section>
+
+      {showRatingDialog && (
+        <RatingDialog
+          restaurantName={ratingTarget?.name}
+          restaurantId={ratingTarget?.id}
+          onSubmit={async (restaurantId, score) => {
+            try {
+              await ratingService.submitRating({ restaurantId, score });
+              toast.success('Thank you for your rating!');
+            } catch (e) {
+              toast.error(e.message || 'Failed to submit rating');
+            } finally {
+              setShowRatingDialog(false);
+              setRatingTarget(null);
+            }
+          }}
+          onSkip={() => {
+            setShowRatingDialog(false);
+            setRatingTarget(null);
+          }}
+        />
+      )}
     </PageShell>
   );
 }

@@ -69,6 +69,11 @@ const historySchema = new mongoose.Schema(
       enum: ['seated', 'no_show', 'left', 'removed'],
       required: true,
     },
+    rating: {
+      type: Number,
+      min: 1,
+      max: 5,
+    },
   },
   {
     timestamps: true,
@@ -78,6 +83,7 @@ const historySchema = new mongoose.Schema(
 historySchema.index({ restaurant: 1, status: 1 });
 historySchema.index({ customer: 1 });
 historySchema.index({ seatedAt: -1 });
+historySchema.index({ restaurant: 1, status: 1, rating: 1 });
 
 const History = mongoose.model('History', historySchema);
 export default History;

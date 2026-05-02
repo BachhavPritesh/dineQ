@@ -166,7 +166,7 @@ function Field({ label, icon: Icon, type, value, onChange, placeholder }) {
     <div>
       <label className="block text-sm font-medium mb-1.5">{label}</label>
       <div className="relative">
-        <Icon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Icon className="absolute left-3 top-3 z-10 h-4 w-4 text-muted-foreground pointer-events-none shrink-0" />
         <input
           type={type}
           value={value}

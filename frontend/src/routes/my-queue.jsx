@@ -16,8 +16,10 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { restaurantService } from '@/services/restaurantService';
 import { queueService } from '@/services/queueService';
+import { ratingService } from '@/services/ratingService';
 import { connectSocket } from '@/socket/socketClient';
 import { motion, AnimatePresence } from 'framer-motion';
+import RatingDialog from '@/components/rating/RatingDialog';
 
 const notificationSound = '/mixkit-correct-answer-tone-2870.wav';
 
@@ -41,6 +43,7 @@ export default function MyQueuePage() {
   const [loading, setLoading] = useState(true);
   const [reminder, setReminder] = useState(null);
   const [seated, setSeated] = useState(false);
+  const [showRatingDialog, setShowRatingDialog] = useState(false);
   const [cart, setCart] = useState({});
   const [hasPreOrder, setHasPreOrder] = useState(false);
 
@@ -506,13 +509,40 @@ export default function MyQueuePage() {
                   <span className="text-foreground font-medium">{restaurant?.name}</span>.
                 </p>
                 <button
-                  onClick={() => navigate('/restaurants')}
+                  onClick={() => {
+                    setSeated(false);
+                    setShowRatingDialog(true);
+                  }}
                   className="mt-6 w-full px-4 py-2.5 rounded-lg gradient-gold text-primary-foreground font-medium shadow-gold hover:opacity-90"
                 >
-                  Explore other restaurants
+                  Rate your experience
                 </button>
               </motion.div>
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showRatingDialog && (
+            <RatingDialog
+              restaurantName={restaurant?.name}
+              restaurantId={restaurant?.id}
+              onSubmit={async (restaurantId, score) => {
+                try {
+                  await ratingService.submitRating({ restaurantId, score });
+                  toast.success('Thank you for your rating!');
+                } catch (e) {
+                  toast.error(e.message || 'Failed to submit rating');
+                } finally {
+                  setShowRatingDialog(false);
+                  navigate('/restaurants');
+                }
+              }}
+              onSkip={() => {
+                setShowRatingDialog(false);
+                navigate('/restaurants');
+              }}
+            />
           )}
         </AnimatePresence>
       </section>
