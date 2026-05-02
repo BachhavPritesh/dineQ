@@ -515,7 +515,7 @@ export default function MyQueuePage() {
                   }}
                   className="mt-6 w-full px-4 py-2.5 rounded-lg gradient-gold text-primary-foreground font-medium shadow-gold hover:opacity-90"
                 >
-                  Explore other restaurants
+                  Rate your experience
                 </button>
               </motion.div>
             </motion.div>
@@ -526,7 +526,7 @@ export default function MyQueuePage() {
           {showRatingDialog && (
             <RatingDialog
               restaurantName={restaurant?.name}
-              restaurantId={restaurant?.id}
+              restaurantId={restaurant?._id}
               onSubmit={async (restaurantId, score) => {
                 try {
                   await ratingService.submitRating({ restaurantId, score });
