@@ -489,6 +489,22 @@ VITE_SOCKET_URL=http://localhost:5000
 
 ***
 
+## 📬 Postman API Documentation
+
+Explore and test all API endpoints interactively using Postman:
+
+👉 **Live Documentation:**  
+https://documenter.getpostman.com/view/50839202/2sBXqKnfFA
+
+### What’s Included:
+- 🔐 Auth APIs (Register/Login)
+- 🍽️ Restaurant APIs
+- 📊 Queue Management APIs
+- 🧾 Order APIs
+- 📡 Example Requests & Responses
+
+> You can directly import or test endpoints without setting up the backend locally.
+
 ## 🗂️ Database Schema
 
 ### Queue Document
